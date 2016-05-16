@@ -1,0 +1,258 @@
+#include <SoftwareSerial.h>
+#include<Servo.h>
+
+//from Rasp Handle
+
+int bit7 = 7;
+
+int cnt = 0;
+int cnt0 = 0;
+int cnt1 = 0;
+int cnt2 = 0;
+int cnt3 = 0;
+int cnt4 = 0;
+int cnt5 = 0;
+int cnt6 = 0;
+
+//
+int val = 0;
+int val0 = 0;
+int val1 = 0;
+int val2 = 0;
+int val3 = 0;
+int val4 = 0;
+
+//
+int Acc0 = 0;
+int Acc1 = 1;
+int Acc2 = 2;
+int Acc3 = 3;
+int Acc4 = 4;
+int BX = 8;
+int A = 6;
+//int AX = 7;
+//int EN = 8;
+
+//servo
+int servo_PIN = 5;
+Servo servo;
+int angle = 100;
+int handle = 100;
+
+//motor
+int enable = 12;
+int direction_a = 10;
+int direction_b = 13;
+int speed_control = 11;
+int motor_speed = 0;
+
+//speed
+int maxspeed = 50;
+
+//cnt
+int startcnt = 0;
+
+boolean Redrive = false;
+boolean Neutrality = false;
+boolean Drive = false;
+boolean Parking = false;
+boolean Break = false;
+boolean Accel = false;
+boolean QLeft = false;
+boolean WRight = false;
+
+void setup() {
+  
+    //servo
+  servo.attach(servo_PIN);
+//  Serial.begin(9600);
+  //from Rasp Handle
+    pinMode(5,INPUT);
+  pinMode(A0,INPUT);
+  pinMode(A1,INPUT);
+  pinMode(A2,INPUT);
+  pinMode(A3,INPUT);
+  pinMode(A4,INPUT);
+  pinMode(A5,INPUT);
+  pinMode(bit7,INPUT);
+  
+  
+  // put your setup code here, to run once:
+  pinMode(Acc0,INPUT);
+  pinMode(Acc1,INPUT);
+  pinMode(Acc2,INPUT);
+  pinMode(Acc3,INPUT);
+  pinMode(Acc4,INPUT);
+  pinMode(BX,INPUT);
+  pinMode(A,INPUT);
+  //pinMode(AX,INPUT);
+  //pinMode(ENA,INPUT);
+  pinMode(servo_PIN,OUTPUT);
+  
+    //motor
+  pinMode(enable,OUTPUT);
+  pinMode(direction_a,OUTPUT);
+  pinMode(direction_b,OUTPUT);
+  pinMode(speed_control,OUTPUT);
+  digitalWrite(enable,HIGH);
+  digitalWrite(direction_a,LOW);
+  digitalWrite(direction_b,LOW);
+  
+  //
+//  Serial.begin(9600);
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+   if(digitalRead(Acc3)==1){
+    val3=8;
+  } else{
+    val3=0;
+  }
+    if(digitalRead(Acc2)==1){
+    val2=4;
+  } else{
+    val2=0;
+  }
+    if(digitalRead(Acc1)==1){
+    val1=2;
+  } else{
+    val1=0;
+  }
+    if(digitalRead(Acc0)==1){
+    val0=1;
+  } else{
+    val0=0;
+  }
+  val = val0+val1+val2+(val3)+30;
+//  Serial.println(val);
+  
+
+    if(digitalRead(Acc4)==HIGH){
+      Redrive = true;
+      Neutrality = false;
+      Drive = false;
+      Parking = false;
+    }  else{
+      Redrive = false;
+      Neutrality = false;
+      Drive = true;
+      Parking = false;
+    } 
+
+    if(Drive){
+    //  analogWrite(speed_control,0);
+      digitalWrite(direction_a,HIGH);
+      digitalWrite(direction_b,LOW);
+    }
+    if(Redrive){
+     // analogWrite(speed_control,0);
+       digitalWrite(direction_a,LOW);
+       digitalWrite(direction_b,HIGH);      
+    }
+    
+    if(val <= 35){
+      Break = true;
+    } else{
+      Break = false;
+    }
+    
+   if(Break){
+//      digitalWrite(led,1); 
+      motor_speed = 0;
+      startcnt = 0;
+    } else{
+//      digitalWrite(led,0); 
+    }
+    
+   if(Drive || Redrive){
+      if(!Break){
+  //      digitalWrite(led,1);
+        
+       if(startcnt == 0){
+        analogWrite(speed_control,100);
+        delay(10);
+        analogWrite(speed_control,100);
+        delay(10);
+        analogWrite(speed_control,100);
+        delay(10);
+        analogWrite(speed_control,100);
+        delay(10);
+  
+        startcnt = 1;
+       }
+    
+       motor_speed=motor_speed+10;
+        if(motor_speed > val)
+        {
+            motor_speed = val;
+        }
+      }
+    } else{
+      motor_speed = 0;
+      startcnt = 0;
+    }
+  
+ 
+   if(digitalRead(A0)==1){
+    cnt0=64;
+  } else{
+    cnt0=0;
+  }
+    if(digitalRead(A1)==1){
+    cnt1=32;
+  }else{
+    cnt1=0;
+  }
+    if(digitalRead(A2)==1){
+    cnt2=16;
+  } else{
+    cnt2=0;
+  }
+    if(digitalRead(A3)==1){
+    cnt3=8;
+  } else{
+    cnt3=0;
+  }
+    if(digitalRead(A4)==1){
+    cnt4=4;
+  } else{
+    cnt4=0;
+  }
+    if(digitalRead(A5)==1){
+    cnt5=2;
+  } else{
+    cnt5=0;
+  }
+    if(digitalRead(bit7)==1){
+    cnt6=1;
+  } else{
+    cnt6=0;
+  }
+  cnt = cnt0+cnt1+cnt2+cnt3+cnt4+cnt5+(cnt6)+30;
+  if(cnt <30 || cnt >150){
+    cnt = 90;
+    
+  }
+  //Serial.println(cnt);
+/*  if(cnt != angle){
+    Serial.println(cnt);
+    Serial.println(cnt0);
+    Serial.println(cnt1);
+    Serial.println(cnt2);
+    Serial.println(cnt3);
+    Serial.println(cnt4);
+    Serial.println(cnt5);
+    Serial.println(cnt6);
+    Serial.println("");
+  }*/
+  
+   angle = cnt;
+ //   motor_speed = val;
+ // motor_speed = 40;
+    analogWrite(speed_control,motor_speed);
+    servo.write(angle);
+  //  delay(10);
+    
+}

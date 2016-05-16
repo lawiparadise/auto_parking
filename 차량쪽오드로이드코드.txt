@@ -1,0 +1,963 @@
+
+#include <stdio.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h> //meset, strlen
+
+#include <wiringPi.h>
+#include <wiringPiI2C.h>
+#include <wiringSerial.h>
+
+#include <pthread.h>
+
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#include <sys/stat.h>
+
+#define MAXLINE 1024
+#define BUFF_SIZE 1024
+
+#define B1 24 //arduino digital pin 0
+#define B2 23 //arduino digital pin 1
+#define B3 22 //arduino digital pin 2
+#define B4 21 //arduino digital pin 3
+
+#define B5 14 //arduino digital pin 4
+#define B6 13 //arduino digital pin 8
+#define B7 12 //arduino digital pin 6
+#define B8 3 //arduino digital pin x
+
+#define C1 27 //arduino analog pin A0
+#define C2 26 //arduino analog pin A1
+#define C3 11 //arduino analog pin A2
+#define C4 10 //arduino analog pin A3
+#define C5 6 //arduino analog pin A4
+#define C6 5 //arduino analog pin A5
+#define C7 4 //arduino digital pin 7
+
+#define R 201
+#define N 202
+#define D 203
+#define P 204
+#define B 205
+#define A 207
+#define DEL 1000
+
+//
+#define DACC 41
+#define RACC 145
+#define STOP 35
+
+//
+volatile int angle = 0;
+volatile int value = 0;
+volatile int status = 0;
+char *ptr;
+char *buf_save[18];
+char *data[9];
+
+//
+volatile int ptx3 = 0;
+volatile int pty3 = 0;
+volatile int ptx4 = 0;
+volatile int pty4 = 0;
+volatile int ptx5 = 0;
+volatile int pty5 = 0;
+volatile int ptx6 = 0;
+volatile int pty6 = 0;
+volatile int spd = 0;
+
+volatile int scope_axis1_y = 300;	// assumed axis
+volatile int scope_axis2_y = 400;
+volatile int scope_axis_x = 300;
+
+//
+struct LT {
+	int x;
+	int y;
+};
+
+struct RT {
+	int x;
+	int y;
+};
+struct LB {
+	volatile int x;
+	volatile int y;
+};
+struct RB {
+	volatile int x;
+	volatile int y;
+};
+
+struct LS {
+	volatile int x;
+	volatile int y;
+};
+struct RS {
+	volatile int x;
+	volatile int y;
+};
+struct LE {
+	volatile int x;
+	volatile int y;
+};
+struct RE {
+	volatile int x;
+	volatile int y;
+};
+
+struct Speed {
+	volatile int x;
+	volatile int y;
+
+};
+
+// * Pthread Initialization //
+pthread_t pthread;
+pthread_t angleThread;
+
+void menu() {
+	int a = 0;
+	if ((pty4 + pty6) / 2 == scope_axis2_y) {
+		value = 202;
+		a = 1;
+	} else if (pty6 == scope_axis2_y) {
+		value = 202;
+		a = 2;
+	} else if (pty6 == pty3) {
+		value = 202;
+		a = 3;
+	} else if ((pty4 + pty6) / 2 == scope_axis2_y) {
+		value = 202;
+		a = 4;
+	} else if (ptx4 < scope_axis_x && ptx3 < scope_axis_x) {
+		value = 202;
+		a = 5;
+	}
+
+	switch (a) {
+	case 1:
+		angle = 30;
+		value = 203;
+		break;
+	case 2:
+		angle = 150;
+		value = 201;
+		break;
+	case 3:
+		angle = 90;
+		value = 203;
+		break;
+	case 4:
+		angle = 150;
+		value = 201;
+		break;
+	default:
+		angle = 90;
+		break;
+	}
+}
+void initPin() {
+	if (wiringPiSetup() == -1) {
+		printf("XXXXXXXXXXXX");
+	}
+	pinMode(B1, OUTPUT);
+	pinMode(B2, OUTPUT);
+
+	pinMode(B3, OUTPUT);
+	pinMode(B4, OUTPUT);
+
+	pinMode(B5, OUTPUT);
+	pinMode(B6, OUTPUT);
+
+	pinMode(B7, OUTPUT);
+	pinMode(B8, OUTPUT);
+
+	pinMode(C1, OUTPUT);
+	pinMode(C2, OUTPUT);
+	pinMode(C3, OUTPUT);
+	pinMode(C4, OUTPUT);
+	pinMode(C5, OUTPUT);
+	pinMode(C6, OUTPUT);
+	pinMode(C7, OUTPUT);
+
+	digitalWrite(B1, LOW);
+	digitalWrite(B2, LOW);
+	digitalWrite(B3, LOW);
+	digitalWrite(B4, LOW);
+	digitalWrite(B5, LOW);
+	digitalWrite(B6, LOW);
+	digitalWrite(B7, LOW);
+	digitalWrite(B8, LOW);
+	digitalWrite(C1, LOW);
+	digitalWrite(C2, LOW);
+	digitalWrite(C3, LOW);
+	digitalWrite(C4, LOW);
+	digitalWrite(C5, LOW);
+	digitalWrite(C6, LOW);
+	digitalWrite(C7, LOW);
+
+	pinMode(1, INPUT);
+	pinMode(7, INPUT);
+//
+
+}
+
+void initXY() {
+
+}
+void* observer_function(void*) {
+
+	while (1) {
+
+		if (value != 0) {
+			fprintf(stderr, "value : %d \n", value);
+
+			int val = value;
+
+			if (val <= 70 && val >= 30) {
+				val -= 30;
+				digitalWrite(B5, 0);
+
+				if ((int) (val / 8) == 1) {
+					val -= 8;
+					digitalWrite(B4, 1);
+				} else {
+					digitalWrite(B4, 0);
+				}
+//
+				if ((int) (val / 4) == 1) {
+					val -= 4;
+					digitalWrite(B3, 1);
+				} else {
+					digitalWrite(B3, 0);
+				}
+
+				if ((int) (val / 2) == 1) {
+					val -= 2;
+					digitalWrite(B2, 1);
+				} else {
+					digitalWrite(B2, 0);
+				}
+
+				if ((int) (val / 1) == 1) {
+					val -= 1;
+					digitalWrite(B1, 1);
+				} else {
+					digitalWrite(B1, 0);
+				}
+				//
+
+			} else if (val <= 170 && val >= 130) {
+
+				val -= 130;
+				digitalWrite(B5, 1);
+				if ((int) (val / 8) == 1) {
+					val -= 8;
+					digitalWrite(B4, 1);
+				} else {
+					digitalWrite(B4, 0);
+				}
+
+				if ((int) (val / 4) == 1) {
+					val -= 4;
+					digitalWrite(B3, 1);
+				} else {
+					digitalWrite(B3, 0);
+				}
+
+				if ((int) (val / 2) == 1) {
+					val -= 2;
+					digitalWrite(B2, 1);
+				} else {
+					digitalWrite(B2, 0);
+				}
+
+				if ((int) (val / 1) == 1) {
+					val -= 1;
+					digitalWrite(B1, 1);
+				} else {
+					digitalWrite(B1, 0);
+				}
+				//
+
+			}
+
+			//	digitalWrite(B9, 1);
+			//	delay(100);
+			//printf("pthread active : %d \n", val);
+			value = 0;
+		} else if (value == 0) {
+
+		}
+	}
+}
+
+void* angleObserver(void*) {
+
+	while (1) {
+
+		if (angle != 0) {
+			fprintf(stderr, "angle : %d \n", angle);
+			int ang = angle;
+			if (ang < 30 && ang > 15)
+				ang = 30;
+			if (ang > 150 && ang < 200)
+				ang = 150;
+
+			if (ang >= 30 && ang <= 150) {
+				ang -= 30;
+
+				if ((int) (ang / 64) == 1) {
+					ang -= 64;
+					digitalWrite(C1, 1);
+//					printf("\n 64 get \n");
+				} else {
+					digitalWrite(C1, 0);
+//					printf("\n 64 non get \n");
+				}
+
+				if ((int) (ang / 32) == 1) {
+					ang -= 32;
+					digitalWrite(C2, 1);
+				} else {
+					digitalWrite(C2, 0);
+				}
+
+				if ((int) (ang / 16) == 1) {
+					ang -= 16;
+					digitalWrite(C3, 1);
+				} else {
+					digitalWrite(C3, 0);
+				}
+
+				if ((int) (ang / 8) == 1) {
+					ang -= 8;
+					digitalWrite(C4, 1);
+				} else {
+					digitalWrite(C4, 0);
+				}
+
+				if ((int) (ang / 4) == 1) {
+					ang -= 4;
+					digitalWrite(C5, 1);
+				} else {
+					digitalWrite(C5, 0);
+				}
+
+				if ((int) (ang / 2) == 1) {
+					ang -= 2;
+					digitalWrite(C6, 1);
+				} else {
+					digitalWrite(C6, 0);
+				}
+
+				if ((int) (ang / 1) == 1) {
+					ang -= 1;
+					digitalWrite(C7, 1);
+				} else {
+					digitalWrite(C7, 0);
+				}
+				//
+
+			}
+
+			angle = 0;
+		} else if (angle == 0) {
+
+		}
+	}
+}
+
+// tcp/ip
+/*void connectToFuture() {
+ int client_socket;
+
+ struct sockaddr_in server_addr;
+
+ char buff[BUFF_SIZE + 5];
+
+ client_socket = socket(PF_INET, SOCK_STREAM, 0);
+
+ if (-1 == client_socket) {
+ printf("socket make fail\n");
+ }
+
+ memset(&server_addr, 0, sizeof(server_addr));
+ server_addr.sin_family = AF_INET;
+ server_addr.sin_port = htons(11001);
+ server_addr.sin_addr.s_addr = inet_addr("192.168.43.134");
+
+ //connect
+ if (-1
+ == connect(client_socket, (struct sockaddr*) &server_addr,
+ sizeof(server_addr))) {
+ printf("connect fail\n");
+ }
+ fprintf(stderr, "connect\n");
+
+ //write
+ if (-1 == write(client_socket, "hello\r\n", strlen("hello"))) {
+ fprintf(stderr, "write error\n");
+ }
+ fprintf(stderr, "write\n");
+
+ //read
+ if (-1 == read(client_socket, buff, BUFF_SIZE)) {
+ fprintf(stderr, "read error\n");
+ }
+ fprintf(stderr, "value : %s", buff);
+
+ //close
+ close(client_socket);
+
+ }*/
+//////////////////////////////
+/*void menu() {
+
+ //
+ //	angle = 90;
+
+
+
+ lt.x = atoi(data[0]);
+ fprintf(stderr, "lt: %d", lt.x);
+ lt.y = atoi(data[1]);
+ rt.x = atoi(data[2]);
+ rt.y = atoi(data[3]);
+ lb.x = atoi(data[4]);
+ lb.y = atoi(data[5]);
+ rb.x = atoi(data[6]);
+ rb.y = atoi(data[7]);
+
+
+ rs.y = 100;
+
+
+
+ //한번만 실행되게
+ int cnt = 0;
+ int a = 0, b = 0, c = 0;
+
+ //3초 후 출발
+ angle = 90;
+ value = 202;
+ delay(3000);
+
+ //1,2,3번 주차 구역 중 선택
+
+ //	while (1) {
+
+ //주차구역까지 전진
+ if (status == 0) {
+ if (((rt.y + rb.y) / 2) > rs.y) {
+ value = 202;
+ status = 1;
+ } else {
+ if (b == 0) {
+ value = 203;
+ //				angle = 90;
+ b = 1;
+ }
+
+ }
+
+ }
+
+ //핸들을 좌로 꺽고 우측 뒷바퀴가 선에 닿을때까지 전진
+ if (status == 1) {
+ if (cnt == 0) {
+ angle = 30;
+ value = 202;
+ delay(1000); //핸들을 다 꺾을때까지 대기
+ cnt = 1;
+ }
+
+ if (rb.y > rs.y) {
+ value = 202;
+ status = 2;
+ } else {
+ if (b == 1) {
+ value = 203;
+ b = 0;
+ }
+
+ }
+ }
+
+ //핸들을 우로 꺾고 수평이 될때까지 후진
+ if (status == 2) {
+ if (cnt == 1) {
+ angle = 150;
+ value = 202;
+ delay(1000); //핸들을 다 꺾을때까지 대기
+ cnt = 2;
+ }
+
+ if (lt.y <= lb.y) {
+ value = 202;
+ status = 3;
+ } else {
+ value = 201;
+ }
+ }
+
+ //////
+
+ if (digitalRead(1) == HIGH) {
+ if (a == 1) {
+ fprintf(stderr, "high\n");
+ rt.y = 120;
+ a = 0;
+ }
+ } else {
+ if (a == 0) {
+ fprintf(stderr, "low\n");
+ rb.y = 90;
+ a = 1;
+ }
+ }
+
+ if (digitalRead(7) == LOW) {
+ if (c == 1) {
+ rb.y = 110;
+ c = 0;
+ }
+ } else {
+ if (c == 0) {
+
+ c = 1;
+ }
+ }
+ //	}
+
+ }*/
+///////////////////////////
+
+int main() {
+
+	initPin();
+	initXY();
+
+	pthread_create(&pthread, NULL, &observer_function, NULL);
+	pthread_detach(pthread);
+
+	pthread_create(&angleThread, NULL, &angleObserver, NULL);
+	pthread_detach(angleThread);
+
+	struct LT lt;
+	struct RT rt;
+	struct LB lb;
+	struct RB rb;
+
+	struct LS ls;
+	struct RS rs;
+	struct LE le;
+	struct RE re;
+	struct Speed sp;
+
+	rs.x = 100;
+	//한번만 실행되게
+	int cnt = 0;
+	int a = 0, b = 0, c = 0;
+
+	angle = 90;
+	value = STOP;
+
+/////////////////////////////////////////////////////////////////////////////////////////
+	struct sockaddr_in serveraddr;
+	int server_sockfd;
+	int client_len;
+	char buf[MAXLINE];
+//	char *ptr;
+//	char *buf_save[16];
+//	char *data[8];
+	if ((server_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+		perror("error : ");
+		return 1;
+	}
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_addr.s_addr = inet_addr("192.168.43.134");
+	serveraddr.sin_port = htons(11001);
+
+	client_len = sizeof(serveraddr);
+
+	if (connect(server_sockfd, (struct sockaddr *) &serveraddr, client_len)
+			== -1) {
+		perror("connect error : ");
+		return 1;
+	}
+	fprintf(stderr, "after connect \n");
+
+
+
+	while (1) {
+	//	fprintf(stderr, "before memset\n");
+		memset(buf, 0x00, MAXLINE);
+	//	fprintf(stderr, "after memset\n");
+		if (read(server_sockfd, buf, MAXLINE) <= 0) {
+			perror("read error : ");
+			fprintf(stderr, "read err\n");
+			return 1;
+		}
+	//	fprintf(stderr, "after read\n");
+		//	fprintf(stderr, "after read \n");
+		//	fprintf(stderr, "server : %s \n", buf);
+
+		if (buf != NULL) {
+			ptr = strtok(buf, ",");
+	//		fprintf(stderr, "after ptr\n");
+			for (int i = 0; i < 18; i++) {
+				buf_save[i] = ptr;
+		//					fprintf(stderr, "buf save[%d] :%s \n", i, buf_save[i]);
+				ptr = strtok(NULL, ",");
+
+			}
+			int k = 1;
+			for (int j = 0; j < 9; j++) {
+				data[j] = buf_save[j + k];
+		//		fprintf(stderr, "data[%d] :%s \n", j, data[j]);
+				k++;
+			}
+
+		}
+
+		//		int a = 0, b = 0;
+		//	menu();
+	//	fprintf(stderr, "before atoi\n");
+
+		if (data[0] != NULL && data[1] != NULL && data[2] != NULL
+				&& data[3] != NULL && data[4] != NULL && data[5] != NULL
+				&& data[6] != NULL && data[7] != NULL && data[8] != NULL) {
+
+		//	fprintf(stderr, "data is not null \n");
+			lt.x = atoi(data[0]);
+			lt.y = atoi(data[1]);
+			rt.x = atoi(data[2]);
+			rt.y = atoi(data[3]);
+			lb.x = atoi(data[4]);
+			lb.y = atoi(data[5]);
+			rb.x = atoi(data[6]);
+			rb.y = atoi(data[7]);
+			sp.x = atoi(data[8]);
+
+
+
+			ptx3 = lt.x;
+			pty3 = lt.y;
+			ptx4 = rt.x;
+			pty4 = rt.y;
+			ptx5 = lb.x;
+			pty5 = lb.y;
+			ptx6 = rb.x;
+			pty6 = rb.y;
+			spd = sp.x;
+
+
+		}
+/*
+		fprintf(stderr, "ptx3 = %d \n", ptx3);
+		fprintf(stderr, "pty3 = %d \n", pty3);
+		fprintf(stderr, "ptx4 = %d \n", ptx4);
+		fprintf(stderr, "pty4 = %d \n", pty4);
+		fprintf(stderr, "ptx5 = %d \n", ptx5);
+		fprintf(stderr, "pty5 = %d \n", pty5);
+		fprintf(stderr, "ptx6 = %d \n", ptx6);
+*/		fprintf(stderr, "pty6 = %d \n", pty6);
+		fprintf(stderr, "spd = %d \n", spd);
+
+
+/////////////////////////////////////////////////////////////////////////
+
+		//주차구역까지 전진
+		if (status == 0) {
+			if ((ptx3) > rs.x) {
+				value = STOP;
+				status = 1;
+				angle = 140;
+
+			} else {
+				value = spd;
+				if (b == 0) {
+
+					b = 1;
+				}
+
+			}
+
+		}
+
+		//핸들을 우로 꺽고 좌측 뒷바퀴가 선에 닿을때까지 전진
+		if (status == 1) {
+			if (cnt == 0) {
+				angle = 140;
+				value = STOP;
+				delay(DEL); //핸들을 다 꺾을때까지 대기
+				cnt = 1;
+			}
+
+			if (ptx5 > rs.x) {
+				value = STOP;
+				status = 2;
+
+/*				fprintf(stderr, "///////////////////////////////ptx5 = %d \n",
+						ptx5);*/
+
+			} else {
+				value = spd;
+				if (b == 1) {
+
+					b = 0;
+				}
+
+			}
+		}
+
+		//핸들을 좌로 꺾고 수평이 될때까지 후진
+		if (status == 2) {
+			if (cnt == 1) {
+				angle = 30;
+				value = STOP;
+				delay(DEL); //핸들을 다 꺾을때까지 대기
+				cnt = 2;
+			}
+
+			if (ptx3 <= ptx5) {
+				fprintf(stderr, "///////////////////////////////ptx3 = %d \n",
+										ptx3);
+				fprintf(stderr, "///////////////////////////////ptx4 = %d \n",
+														ptx4);
+				fprintf(stderr, "///////////////////////////////ptx5 = %d \n",
+														ptx5);
+								fprintf(stderr, "///////////////////////////////ptx6 = %d \n",
+																		ptx6);
+				value = STOP;
+				status = 3;
+			} else {
+				value = 100+spd;
+				if(b == 0){
+
+					b=1;
+				}
+
+			}
+		}
+
+		//바퀴를 일자로 맞추고 후진
+		if (status == 3) {
+			if (cnt == 2) {
+				angle = 90;
+				value = STOP;
+				delay(DEL); //핸들을 다 꺾을때까지 대기
+
+				cnt = 3;
+			}
+			if (pty3 <= -200) {
+				value = STOP;
+				status = 4;
+
+
+
+			} else {
+				value = 100+spd;
+				if(b == 1){
+
+				}
+
+
+			}
+
+		}
+		if (status == 4){
+			fprintf(stderr, "doneeeeeeeeeeeee\n");
+			while(1);
+		}
+		continue;
+
+		/*		lt.x = *data[0];
+		 lt.y = *data[1];
+		 rt.x = *data[2];
+		 rt.y = *data[3];
+		 lb.x = *data[4];
+		 lb.y = *data[5];
+		 rb.x = *data[6];
+		 rb.y = *data[7];*/
+		fprintf(stderr, "lt.x = %d \n", lt.x);
+		fprintf(stderr, "lt.y = %d \n", lt.y);
+		fprintf(stderr, "rt.x = %d \n", rt.x);
+		fprintf(stderr, "rt.y = %d \n", rt.y);
+		fprintf(stderr, "lb.x = %d \n", lb.x);
+		fprintf(stderr, "lb.y = %d \n", lb.y);
+		fprintf(stderr, "rb.x = %d \n", rb.x);
+		fprintf(stderr, "rb.y = %d \n", rb.y);
+
+		fprintf(stderr, "after atoi\n");
+		memset(data, 0x00, 8);
+		rs.y = 500;
+
+		/*	rt.y = 0;
+		 rb.y = 0;
+		 rs.y = 100;
+		 lt.y = 90;
+		 lb.y = 100;*/
+
+		//3초 후 출발
+		angle = 90;
+		value = 202;
+		fprintf(stderr, "before delay\n");
+//		delay(3000);
+		fprintf(stderr, "after delay\n");
+		//1,2,3번 주차 구역 중 선택
+
+		fprintf(stderr, "(rt.y+rb.y)/2 = %d, rs.y = %d", (rt.y + rb.y) / 2,
+				rs.y);
+
+		//	while (1) {
+
+		//주차구역까지 전진
+		if (status == 0) {
+			if (((rt.y + rb.y) / 2) > rs.y) {
+				value = 202;
+				status = 1;
+			} else {
+				if (b == 0) {
+					value = 203;
+					//				angle = 90;
+					b = 1;
+				}
+
+			}
+
+		}
+
+		//핸들을 좌로 꺽고 우측 뒷바퀴가 선에 닿을때까지 전진
+		if (status == 1) {
+			if (cnt == 0) {
+				angle = 30;
+				value = 202;
+				delay(1000); //핸들을 다 꺾을때까지 대기
+				cnt = 1;
+			}
+
+			if (rb.y > rs.y) {
+				value = 202;
+				status = 2;
+			} else {
+				if (b == 1) {
+					value = 203;
+					b = 0;
+				}
+
+			}
+		}
+
+		//핸들을 우로 꺾고 수평이 될때까지 후진
+		if (status == 2) {
+			if (cnt == 1) {
+				angle = 150;
+				value = 202;
+				delay(1000); //핸들을 다 꺾을때까지 대기
+				cnt = 2;
+			}
+
+			if (lt.y <= lb.y) {
+				value = 202;
+				status = 3;
+			} else {
+				value = 201;
+			}
+		}
+
+		//////
+
+		if (digitalRead(1) == HIGH) {
+			if (a == 1) {
+				fprintf(stderr, "high\n");
+				rt.y = 120;
+				a = 0;
+			}
+		} else {
+			if (a == 0) {
+				fprintf(stderr, "low\n");
+				rb.y = 90;
+				a = 1;
+			}
+		}
+
+		if (digitalRead(7) == LOW) {
+			if (c == 1) {
+				rb.y = 110;
+				c = 0;
+			}
+		} else {
+			if (c == 0) {
+
+				c = 1;
+			}
+		}
+
+	} // read while end
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	//int a = 0, b = 0;
+
+	//tcp/ip함수 내 반복문으로 좌표 설정, 아마 쓰레드 돌릴듯?
+	//	connectToFuture();
+
+	//좌표값에 따른 차량 이동 설정
+	//menu();
+
+	/*	while (1) {
+	 if (digitalRead(1) == HIGH) {
+	 if (a == 1) {
+	 value = 201;
+	 a = 0;
+	 }
+	 } else {
+	 if (a == 0) {
+	 value = 202;
+	 a = 1;
+	 }
+	 }
+
+	 if (digitalRead(7) == LOW) {
+	 if (b == 1) {
+	 //				value = 40;
+	 angle = 40;
+	 b = 0;
+	 }
+	 } else {
+	 if (b == 0) {
+	 //				value = 140;
+	 angle = 140;
+	 b = 1;
+	 }
+	 }
+
+	 }*/
+
+	/*	int adcValue = 0;
+	 while (1) {
+	 if ((adcValue = analogRead(0))) {
+
+	 //			analogWrite(1, 100000);
+	 //			digitalWrite(1, 1);
+	 //			analogWrite(1, adcValue/4);
+	 pwmWrite(1, adcValue/4);
+	 fprintf(stderr, "adc value1 : %d\n", adcValue);
+	 delay(500);
+	 analogWrite(33, adcValue);
+	 fprintf(stderr, "adc value2 : %d\n", adcValue);
+	 delay(500);
+
+	 }
+
+	 }*/
+	close(server_sockfd);
+	return 0;
+}
+
